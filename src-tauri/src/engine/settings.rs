@@ -1,0 +1,68 @@
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+
+use crate::engine::paths::Dirs;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct Settings {
+    /// Azure application (public client) id used for Microsoft device-code login.
+    pub client_id: String,
+    /// JVM max heap in MB.
+    pub memory_mb: u32,
+    /// Fallback offline username when no Microsoft account is signed in.
+    pub username: String,
+    /// Optional explicit java executable path.
+    pub java_path: String,
+    /// Last selected version.
+    pub last_version: String,
+    /// Last selected loader: vanilla | fabric | quilt.
+    pub last_loader: String,
+    /// Instance name used for game directory.
+    pub instance: String,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            client_id: String::new(),
+            memory_mb: 4096,
+            username: "Player".to_string(),
+            java_path: String::new(),
+            last_version: String::new(),
+            last_loader: "vanilla".to_string(),
+            instance: "default".to_string(),
+        }
+    }
+}
+
+impl Settings {
+    pub fn path(dirs: &Dirs) -> std::path::PathBuf {
+        dirs.root.join("settings.json")
+    }
+
+    pub fn load(dirs: &Dirs) -> Settings {
+        let p = Settings::path(dirs);
+        match std::fs::read_to_string(&p) {
+            Ok(s) => serde_json::from_str(&s).unwrap_or_default(),
+            Err(_) => Settings::default(),
+        }
+    }
+
+    pub fn save(&self, dirs: &Dirs) -> Result<()> {
+        let p = Settings::path(dirs);
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&p, serde_json::to_string_pretty(self)?)?;
+        Ok(())
+    }
+
+    pub fn load_from(path: &Path) -> Settings {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+}

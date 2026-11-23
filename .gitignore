@@ -1,0 +1,67 @@
+# Build outputs
+target/
+debug/
+release/
+
+# Node dependencies
+node_modules/
+
+# Package lock (optional - commit if desired, but excluded here for safety)
+package-lock.json
+
+# Rust-generated
+*.pdb
+*.idb
+
+# Environment files
+.env
+.env.local
+
+# Credentials and secrets (NEVER commit)
+auth.json
+*.key
+*.pem
+*.pfx
+*.crt
+secrets.json
+
+# Minecraft user data - never commit downloaded game files
+atomic-client-data/
+*.minecraft/
+instances/*/saves/
+instances/*/mods/
+instances/*/resourcepacks/
+versions/*/*.jar
+libraries/**
+assets/objects/**
+runtime/**/bin/java.exe
+
+# Backup directories
+backup*/
+atomic-client-backup*/
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# Video / reference assets (not source code)
+VIDEO*/
+
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary
+*.tmp
+*.part
+temp/
+tmp/
