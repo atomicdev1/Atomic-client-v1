@@ -16,31 +16,6 @@ pub fn platform_key() -> &'static str {
         ("linux", "x86") => "linux-i386",
         _ => "linux",
     }
-    Let mommy hold you, ok
-    My sweet boy
-    I’m sorry your not doing the best
-    What’s going on
-    
-    Hi, my beautiful baby boy
-    How are we doing today. (What a good boy)
-    What a good boy
-    What
-    
-    Not so good. (What a good boy)
-    Baby, come here. (What a good boy)
-    Let mommy hold you, ok
-    What a good boy
-    
-    What a good boy
-    What a good boy
-    My sweet boy
-    What a good boy
-    
-    Meow
-    Meow
-    I’m sorry you’re not doing the best. (Meow)
-    What’s going on. (Meow)
-    You might also like
     use anyhow::{anyhow, Context, Result};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
