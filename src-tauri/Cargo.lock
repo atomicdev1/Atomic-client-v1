@@ -1282,7 +1282,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gtk"
+name = "gt"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd56fb197bfc42bd5d2751f4f017d44ff59fbb58140c6b49f9b3b2bdab08506a"
