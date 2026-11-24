@@ -162,6 +162,8 @@ pub fn run_tauri() {
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             commands::minecraft::list_versions,
+            commands::minecraft::list_versions_filtered,
+            commands::minecraft::get_version_info,
             commands::minecraft::launch_game,
             commands::minecraft::data_dir,
             commands::settings::get_settings,

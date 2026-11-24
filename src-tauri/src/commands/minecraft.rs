@@ -1,7 +1,7 @@
 use crate::engine::launch::{install_and_launch, LaunchOptions};
-use crate::engine::manifest::fetch_manifest;
 use crate::engine::paths::Dirs;
 use crate::engine::settings::Settings;
+use crate::engine::version_catalogue::{VersionCatalogue, VersionOrder, VersionTypeFilter};
 use crate::engine::auth::offline_account;
 use crate::engine::download::Progress;
 use std::sync::Arc;
@@ -16,7 +16,10 @@ pub struct ProgressPayload {
 #[tauri::command]
 pub async fn list_versions(state: tauri::State<'_, crate::AppState>) -> Result<serde_json::Value, String> {
     let client = state.client.clone();
-    let manifest = crate::engine::manifest::fetch_manifest(&client)
+    let dirs = state.dirs.clone();
+    let catalogue = VersionCatalogue::new(client, dirs);
+    let manifest = catalogue
+        .fetch_manifest(false)
         .await
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
@@ -24,6 +27,69 @@ pub async fn list_versions(state: tauri::State<'_, crate::AppState>) -> Result<s
         "versions": manifest.versions.iter().map(|v| serde_json::json!({
             "id": v.id, "type": v.kind, "releaseTime": v.release_time
         })).collect::<Vec<_>>()
+    }))
+}
+
+#[tauri::command]
+pub async fn list_versions_filtered(
+    state: tauri::State<'_, crate::AppState>,
+    filter: Option<String>,
+    order: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let client = state.client.clone();
+    let dirs = state.dirs.clone();
+    let catalogue = VersionCatalogue::new(client, dirs);
+    let manifest = catalogue
+        .fetch_manifest(false)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let filter = match filter.as_deref() {
+        Some("release") => VersionTypeFilter::Release,
+        Some("snapshot") => VersionTypeFilter::Snapshot,
+        Some("legacy") => VersionTypeFilter::Legacy,
+        Some("exclude_snapshot") => VersionTypeFilter::ExcludeSnapshot,
+        _ => VersionTypeFilter::All,
+    };
+
+    let order = match order.as_deref() {
+        Some("oldest") => VersionOrder::OldestFirst,
+        _ => VersionOrder::NewestFirst,
+    };
+
+    let versions = catalogue.list_versions(&manifest, &filter, order);
+    Ok(serde_json::json!({
+        "latest": manifest.latest,
+        "versions": versions.iter().map(|v| serde_json::json!({
+            "id": v.id, "type": v.kind, "releaseTime": v.release_time
+        })).collect::<Vec<_>>(),
+        "total": manifest.versions.len(),
+    }))
+}
+
+#[tauri::command]
+pub async fn get_version_info(
+    state: tauri::State<'_, crate::AppState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let client = state.client.clone();
+    let dirs = state.dirs.clone();
+    let catalogue = VersionCatalogue::new(client, dirs);
+    let manifest = catalogue
+        .fetch_manifest(false)
+        .await
+        .map_err(|e| e.to_string())?;
+    let info = catalogue
+        .version_info(&id, &manifest)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "id": info.id,
+        "type": info.kind,
+        "release_time": info.release_time,
+        "java_major": info.java_major,
+        "installed": info.installed,
+        "client_size_mb": info.client_size_mb,
     }))
 }
 

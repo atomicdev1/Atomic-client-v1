@@ -170,3 +170,36 @@ pub fn check_java_binary(path: &Path) -> Result<String> {
         .with_context(|| format!("running {}", path.display()))?;
     Ok(String::from_utf8_lossy(&out.stderr).to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_component_for_major() {
+        assert_eq!(component_for_major(8), "jre-legacy");
+        assert_eq!(component_for_major(7), "jre-legacy");
+        assert_eq!(component_for_major(9), "java-runtime-alpha");
+        assert_eq!(component_for_major(16), "java-runtime-alpha");
+        assert_eq!(component_for_major(17), "java-runtime-gamma");
+        assert_eq!(component_for_major(20), "java-runtime-gamma");
+        assert_eq!(component_for_major(21), "java-runtime-delta");
+        assert_eq!(component_for_major(23), "java-runtime-delta");
+        assert_eq!(component_for_major(24), "java-runtime-epsilon");
+        assert_eq!(component_for_major(25), "java-runtime-epsilon");
+    }
+
+    #[test]
+    fn test_platform_key_windows() {
+        if cfg!(windows) {
+            assert_eq!(platform_key(), "windows-x64");
+        }
+    }
+
+    #[test]
+    fn test_java_exe_name_windows() {
+        if cfg!(windows) {
+            assert_eq!(java_exe_name(), "java.exe");
+        }
+    }
+}

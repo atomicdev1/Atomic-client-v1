@@ -151,3 +151,117 @@ pub fn feature_map(demo: bool, custom_resolution: bool) -> HashMap<String, bool>
     m.insert("is_quick_play_realms".to_string(), false);
     m
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rule_matches_os_name() {
+        let rule = Rule {
+            action: "allow".to_string(),
+            os: Some(Os {
+                name: Some("windows".to_string()),
+                arch: None,
+                version: None,
+            }),
+            features: None,
+        };
+        let features = HashMap::new();
+        assert!(rule_matches(&rule, &features));
+    }
+
+    #[test]
+    fn test_rule_matches_os_name_mismatch() {
+        let rule = Rule {
+            action: "allow".to_string(),
+            os: Some(Os {
+                name: Some("osx".to_string()),
+                arch: None,
+                version: None,
+            }),
+            features: None,
+        };
+        let features = HashMap::new();
+        assert!(!rule_matches(&rule, &features));
+    }
+
+    #[test]
+    fn test_rule_matches_arch() {
+        let rule = Rule {
+            action: "allow".to_string(),
+            os: Some(Os {
+                name: Some("windows".to_string()),
+                arch: Some("x86_64".to_string()),
+                version: None,
+            }),
+            features: None,
+        };
+        let features = HashMap::new();
+        assert!(rule_matches(&rule, &features));
+    }
+
+    #[test]
+    fn test_rule_matches_features() {
+        let rule = Rule {
+            action: "allow".to_string(),
+            os: None,
+            features: Some(HashMap::from([("is_demo_user".to_string(), true)])),
+        };
+        let mut features = HashMap::new();
+        features.insert("is_demo_user".to_string(), true);
+        assert!(rule_matches(&rule, &features));
+
+        let mut features2 = HashMap::new();
+        features2.insert("is_demo_user".to_string(), false);
+        assert!(!rule_matches(&rule, &features2));
+    }
+
+    #[test]
+    fn test_allowed_no_rules() {
+        assert!(allowed(None, &HashMap::new()));
+        assert!(allowed(Some(&Vec::new()), &HashMap::new()));
+    }
+
+    #[test]
+    fn test_allowed_disallow_by_default() {
+        let rules = vec![Rule {
+            action: "disallow".to_string(),
+            os: None,
+            features: None,
+        }];
+        assert!(!allowed(Some(&rules), &HashMap::new()));
+    }
+
+    #[test]
+    fn test_allowed_last_rule_wins() {
+        let rules = vec![
+            Rule {
+                action: "disallow".to_string(),
+                os: None,
+                features: None,
+            },
+            Rule {
+                action: "allow".to_string(),
+                os: None,
+                features: None,
+            },
+        ];
+        assert!(allowed(Some(&rules), &HashMap::new()));
+    }
+
+    #[test]
+    fn test_feature_map_defaults() {
+        let m = feature_map(false, false);
+        assert_eq!(m.get("is_demo_user"), Some(&false));
+        assert_eq!(m.get("has_custom_resolution"), Some(&false));
+        assert_eq!(m.get("has_quick_plays_support"), Some(&false));
+    }
+
+    #[test]
+    fn test_feature_map_with_values() {
+        let m = feature_map(true, true);
+        assert_eq!(m.get("is_demo_user"), Some(&true));
+        assert_eq!(m.get("has_custom_resolution"), Some(&true));
+    }
+}

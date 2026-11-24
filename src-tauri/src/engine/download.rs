@@ -150,3 +150,71 @@ pub async fn fetch_text(client: &reqwest::Client, url: &str) -> Result<String> {
     let r = client.get(url).send().await?.error_for_status()?;
     Ok(r.text().await?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sha1_hex() {
+        let data = b"hello world";
+        let hash = sha1_hex(data);
+        // SHA-1 of "hello world" is aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
+        assert_eq!(hash, "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d");
+    }
+
+    #[test]
+    fn test_sha1_hex_empty() {
+        let data = b"";
+        let hash = sha1_hex(data);
+        // SHA-1 of empty string is da39a3ee5e6b4b0d3255bfef95601890afd80709
+        assert_eq!(hash, "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+    }
+
+    #[test]
+    fn test_sha1_file() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("atomic_test_sha1.txt");
+        {
+            let mut f = std::fs::File::create(&path).expect("create temp file");
+            f.write_all(b"test content").expect("write should succeed");
+        }
+        let hash = sha1_file(&path).expect("sha1_file should succeed");
+        let expected = sha1_hex(b"test content");
+        assert_eq!(hash, expected);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_sha1_file_mismatch_detection() {
+        let data1 = b"content one";
+        let data2 = b"content two";
+        let hash1 = sha1_hex(data1);
+        let hash2 = sha1_hex(data2);
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_dl_item_defaults() {
+        let item = DlItem {
+            url: "https://example.com/file.jar".to_string(),
+            path: std::path::PathBuf::from("/tmp/file.jar"),
+            sha1: Some("aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d".to_string()),
+            size: Some(11),
+        };
+        assert!(item.url.starts_with("https://"));
+        assert!(item.sha1.is_some());
+        assert!(item.size.is_some());
+    }
+
+    #[test]
+    fn test_looks_present_missing_file() {
+        let item = DlItem {
+            url: "https://example.com/file.jar".to_string(),
+            path: std::path::PathBuf::from("/tmp/nonexistent_file_atomic_test.jar"),
+            sha1: None,
+            size: None,
+        };
+        assert!(!looks_present(&item));
+    }
+}

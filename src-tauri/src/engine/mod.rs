@@ -10,3 +10,4 @@ pub mod paths;
 pub mod performance;
 pub mod rules;
 pub mod settings;
+pub mod version_catalogue;

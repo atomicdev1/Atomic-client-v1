@@ -179,6 +179,66 @@ fn plan_libraries(details: &VersionDetails, dirs: &Dirs, java_major: i32) -> Lib
     }
 }
 
+/// Sanitize a ZIP archive entry name into a safe relative path.
+///
+/// Treats every entry name as untrusted input. Rejects absolute paths,
+/// parent-directory traversal (`..`), root or platform-prefix components,
+/// and paths that could escape the intended extraction directory.
+/// Handles both `/` and `\` as path separators regardless of OS.
+///
+/// Returns a safe relative path with only forward slashes.
+fn sanitize_zip_entry_name(name: &str) -> Result<String> {
+    // Normalize separators: treat both / and \ as separators
+    let normalized = name.replace('\\', "/");
+
+    // Reject absolute paths (Unix-style leading /)
+    if normalized.starts_with('/') {
+        return Err(anyhow!(
+            "zip entry path is absolute: {}",
+            name
+        ));
+    }
+
+    // Reject Windows drive letters (e.g., "C:/...")
+    let mut chars = normalized.chars();
+    if let (Some(first), Some(second)) = (chars.next(), chars.next()) {
+        if first.is_ascii_alphabetic() && second == ':' {
+            return Err(anyhow!(
+                "zip entry path has drive letter: {}",
+                name
+            ));
+        }
+    }
+
+    let mut components: Vec<&str> = Vec::new();
+    for component in normalized.split('/') {
+        match component {
+            "" | "." => continue, // skip empty and current-directory components
+            ".." => {
+                return Err(anyhow!(
+                    "zip entry path contains parent-directory reference: {}",
+                    name
+                ));
+            }
+            other => components.push(other),
+        }
+    }
+
+    if components.is_empty() {
+        return Err(anyhow!(
+            "zip entry path has no valid filename: {}",
+            name
+        ));
+    }
+
+    Ok(components.join("/"))
+}
+
+/// Extract native libraries from a ZIP archive into the destination directory.
+///
+/// Every entry name is sanitized before extraction to prevent directory
+/// traversal. Entries with `..`, absolute paths, drive letters, or other
+/// escape attempts are rejected with an error.
 fn extract_natives(jar: &Path, dest: &Path, excludes: &[String]) -> Result<()> {
     let file = std::fs::File::open(jar)
         .with_context(|| format!("opening native jar {}", jar.display()))?;
@@ -192,12 +252,11 @@ fn extract_natives(jar: &Path, dest: &Path, excludes: &[String]) -> Result<()> {
         if excludes.iter().any(|e| name.starts_with(e)) {
             continue;
         }
-        // Flatten like the official launcher does.
-        let fname = name.rsplit('/').next().unwrap_or(&name);
-        if fname.is_empty() {
-            continue;
-        }
-        let out = dest.join(fname);
+
+        // Sanitize the entry name to prevent path traversal
+        let safe_name = sanitize_zip_entry_name(&name)?;
+
+        let out = dest.join(&safe_name);
         std::fs::create_dir_all(dest)?;
         let mut f = std::fs::File::create(&out)?;
         std::io::copy(&mut entry, &mut f)?;

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::engine::rules::Rule;
@@ -17,7 +17,7 @@ pub struct Latest {
     pub snapshot: String,
 }
 
-#[derive(Deserialize, Clone, Debug, Default)]
+#[derive(Deserialize, Clone, Debug, Serialize, Default)]
 pub struct VersionSummary {
     pub id: String,
     #[serde(rename = "type", default)]
@@ -289,4 +289,113 @@ pub async fn fetch_assets_index(client: &reqwest::Client, url: &str) -> Result<A
         .await?
         .error_for_status()?;
     Ok(r.json().await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_manifest_parsing() {
+        let json = r#"{
+            "latest": {
+                "release": "1.20.1",
+                "snapshot": "23w42a"
+            },
+            "versions": [
+                {
+                    "id": "1.20.1",
+                    "type": "release",
+                    "url": "https://piston-meta.mojang.com/v1/packages/abc/1.20.1.json",
+                    "releaseTime": "2023-06-07T13:39:36+00:00",
+                    "time": "2023-06-07T13:39:36+00:00",
+                    "sha1": "abc123",
+                    "complianceLevel": 1
+                },
+                {
+                    "id": "23w42a",
+                    "type": "snapshot",
+                    "url": "https://piston-meta.mojang.com/v1/packages/def/23w42a.json",
+                    "releaseTime": "2023-10-18T13:39:36+00:00",
+                    "time": "2023-10-18T13:39:36+00:00",
+                    "sha1": "def456",
+                    "complianceLevel": 1
+                }
+            ]
+        }"#;
+        let manifest: VersionManifest = serde_json::from_str(json).unwrap();
+        assert_eq!(manifest.latest.release, "1.20.1");
+        assert_eq!(manifest.latest.snapshot, "23w42a");
+        assert_eq!(manifest.versions.len(), 2);
+        assert_eq!(manifest.versions[0].id, "1.20.1");
+        assert_eq!(manifest.versions[0].kind, "release");
+        assert_eq!(manifest.versions[1].id, "23w42a");
+        assert_eq!(manifest.versions[1].kind, "snapshot");
+    }
+
+    #[test]
+    fn test_version_details_parsing() {
+        let json = r#"{
+            "id": "1.20.1",
+            "type": "release",
+            "mainClass": "net.minecraft.client.main.Main",
+            "arguments": {
+                "game": ["--username", "${auth_player_name}"],
+                "jvm": ["-Xmx2G"],
+                "default-user-jvm": ["-Xms2G", "-Xmx4G"]
+            },
+            "javaVersion": {
+                "component": "java-runtime-gamma",
+                "majorVersion": 17
+            },
+            "downloads": {
+                "client": {
+                    "sha1": "abc123",
+                    "size": 41483720,
+                    "url": "https://piston-data.mojang.com/v1/objects/abc/client.jar"
+                }
+            },
+            "libraries": [],
+            "asset_index": {
+                "id": "5",
+                "url": "https://piston-meta.mojang.com/v1/packages/abc/5.json",
+                "sha1": "def456",
+                "size": 597235
+            }
+        }"#;
+        let details: VersionDetails = serde_json::from_str(json).unwrap();
+        assert_eq!(details.id, "1.20.1");
+        assert_eq!(details.kind, "release");
+        assert_eq!(details.main_class, "net.minecraft.client.main.Main");
+        assert_eq!(details.java_major(), 17);
+        assert!(details.downloads.is_some());
+        let client = details.downloads.unwrap().client.unwrap();
+        assert_eq!(client.size, Some(41483720));
+        assert_eq!(details.asset_index.unwrap().id, "5");
+    }
+
+    #[test]
+    fn test_version_details_missing_optional_fields() {
+        let json = r#"{
+            "id": "1.5.2",
+            "type": "release",
+            "mainClass": "net.minecraft.client.main.Main",
+            "minecraftArguments": "--username ${auth_player_name} --version ${version_name}",
+            "libraries": [],
+            "downloads": {
+                "client": {
+                    "sha1": "abc",
+                    "size": 1000,
+                    "url": "https://example.com/client.jar"
+                }
+            }
+        }"#;
+        let details: VersionDetails = serde_json::from_str(json).unwrap();
+        assert_eq!(details.id, "1.5.2");
+        assert_eq!(details.java_major(), 8); // defaults to 8 when missing
+        assert_eq!(details.java_component(), "jre-legacy"); // defaults when missing
+        assert_eq!(details.asset_index_id(), "legacy"); // defaults when missing
+        assert!(details.minecraft_arguments.is_some());
+        assert!(details.arguments.is_none()); // legacy version, no modern arguments
+    }
 }

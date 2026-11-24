@@ -26,6 +26,14 @@ export async function listVersions() {
   return invoke<any>("list_versions");
 }
 
+export async function listVersionsFiltered(filter?: string, order?: string) {
+  return invoke<any>("list_versions_filtered", { filter, order });
+}
+
+export async function getVersionInfo(id: string) {
+  return invoke<any>("get_version_info", { id });
+}
+
 export async function launchGame(opts: {
   version: string;
   loader: string;

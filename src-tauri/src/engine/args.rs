@@ -149,3 +149,149 @@ pub fn build(ctx: &ArgContext<'_>) -> (Vec<String>, Vec<String>) {
 
     (jvm, game)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_player() -> PlayerInfo {
+        PlayerInfo {
+            name: "TestPlayer".to_string(),
+            uuid: "12345678-1234-1234-1234-123456789012".to_string(),
+            access_token: "token123".to_string(),
+            user_type: "legacy".to_string(),
+            xuid: "xuid123".to_string(),
+            client_id: "client123".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_subst() {
+        let mut map: HashMap<&'static str, String> = HashMap::new();
+        map.insert("auth_player_name", "Notch".to_string());
+        map.insert("version_name", "1.20.1".to_string());
+        assert_eq!(subst("hello ${auth_player_name}", &map), "hello Notch");
+        assert_eq!(subst("version ${version_name}", &map), "version 1.20.1");
+        assert_eq!(subst("no placeholders", &map), "no placeholders");
+    }
+
+    #[test]
+    fn test_collect_entries_plain() {
+        let entries = vec![ArgEntry::Plain("-Xmx2G".to_string())];
+        let mut out = Vec::new();
+        let map: HashMap<&'static str, String> = HashMap::new();
+        collect_entries(&entries, &HashMap::new(), &map, &mut out);
+        assert_eq!(out, vec!["-Xmx2G".to_string()]);
+    }
+
+    #[test]
+    fn test_collect_entries_conditional_allow() {
+        let entries = vec![ArgEntry::Conditional(RuleArg {
+            rules: vec![],
+            value: ArgValue::One("-Xmx4G".to_string()),
+        })];
+        let mut out = Vec::new();
+        let map: HashMap<&'static str, String> = HashMap::new();
+        collect_entries(&entries, &HashMap::new(), &map, &mut out);
+        assert_eq!(out, vec!["-Xmx4G".to_string()]);
+    }
+
+    #[test]
+    fn test_build_vanilla_args() {
+        let details = VersionDetails {
+            id: "1.20.1".to_string(),
+            kind: "release".to_string(),
+            main_class: "net.minecraft.client.main.Main".to_string(),
+            minecraft_arguments: None,
+            arguments: Some(Arguments {
+                game: vec![
+                    ArgEntry::Plain("--username".to_string()),
+                    ArgEntry::Plain("${auth_player_name}".to_string()),
+                ],
+                jvm: vec![ArgEntry::Plain("-Xmx2G".to_string())],
+                default_user_jvm: vec![],
+            }),
+            libraries: Vec::new(),
+            downloads: None,
+            asset_index: None,
+            assets: None,
+            java_version: Some(JavaVersion {
+                component: "java-runtime-gamma".to_string(),
+                major_version: 17,
+            }),
+            logging: None,
+            release_time: "2023-06-07T13:39:36+00:00".to_string(),
+            minimum_launcher_version: None,
+        };
+
+        let player = test_player();
+        let ctx = ArgContext {
+            details: &details,
+            classpath: &[],
+            natives_dir: std::path::Path::new("/tmp/natives"),
+            game_dir: std::path::Path::new("/tmp/game"),
+            assets_dir: std::path::Path::new("/tmp/assets"),
+            assets_index: "5",
+            virtual_assets: None,
+            player: &player,
+            launcher_name: "AtomicClient",
+            launcher_version: "0.1.0",
+            memory_mb: 4096,
+            extra_jvm: &[],
+            demo: false,
+            width: 854,
+            height: 480,
+        };
+
+        let (jvm, game) = build(&ctx);
+        assert!(jvm.iter().any(|a| a == "-Xmx4096M"));
+        assert!(jvm.iter().any(|a| a == "-Xms2048M"));
+        assert!(game.iter().any(|a| a == "--username"));
+        assert!(game.iter().any(|a| a == "TestPlayer"));
+    }
+
+    #[test]
+    fn test_build_legacy_args() {
+        let details = VersionDetails {
+            id: "1.5.2".to_string(),
+            kind: "release".to_string(),
+            main_class: "net.minecraft.client.main.Main".to_string(),
+            minecraft_arguments: Some("--username ${auth_player_name} --version ${version_name}".to_string()),
+            arguments: None,
+            libraries: Vec::new(),
+            downloads: None,
+            asset_index: None,
+            assets: None,
+            java_version: None,
+            logging: None,
+            release_time: "2013-05-02T12:00:00+00:00".to_string(),
+            minimum_launcher_version: None,
+        };
+
+        let player = test_player();
+        let ctx = ArgContext {
+            details: &details,
+            classpath: &[],
+            natives_dir: std::path::Path::new("/tmp/natives"),
+            game_dir: std::path::Path::new("/tmp/game"),
+            assets_dir: std::path::Path::new("/tmp/assets"),
+            assets_index: "legacy",
+            virtual_assets: None,
+            player: &player,
+            launcher_name: "AtomicClient",
+            launcher_version: "0.1.0",
+            memory_mb: 1024,
+            extra_jvm: &[],
+            demo: false,
+            width: 854,
+            height: 480,
+        };
+
+        let (jvm, game) = build(&ctx);
+        assert!(jvm.iter().any(|a| a == "-Xmx1024M"));
+        assert!(game.iter().any(|a| a == "--username"));
+        assert!(game.iter().any(|a| a == "TestPlayer"));
+        assert!(game.iter().any(|a| a == "--version"));
+        assert!(game.iter().any(|a| a == "1.5.2"));
+    }
+}
