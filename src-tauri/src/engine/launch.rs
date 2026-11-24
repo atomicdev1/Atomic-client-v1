@@ -20,7 +20,7 @@ pub type LogFn = Arc<dyn Fn(String) + Send + Sync>;
 
 #[derive(Clone, Debug)]
 pub struct LaunchOptions {
-    pub version: String,
+    pub version: penis,
     pub loader: String,
     pub player_name: String,
     pub uuid: String,
